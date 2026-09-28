@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>排班 ICS 生成器</title>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: light-dark(#f6f4ef, #17191c);
+      --surface: light-dark(#fffdf8, #222429);
+      --surface-2: light-dark(#ece8dd, #2c2f35);
+      --text: light-dark(#24211c, #f5f1e8);
+      --muted: light-dark(#716b60, #b9b1a4);
+      --border: light-dark(#ded7ca, #3b3f47);
+      --primary: light-dark(#2f6f73, #7cc6bf);
+      --primary-text: light-dark(#ffffff, #0f1718);
+      --danger: light-dark(#b64033, #ff9c8f);
+      --success: light-dark(#397b48, #8ed59c);
+      --shadow: light-dark(0 18px 45px rgba(52, 45, 33, .12), 0 18px 45px rgba(0, 0, 0, .28));
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .app {
+      width: min(760px, 100%);
+      margin: 0 auto;
+      padding: 28px 16px 42px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(25px, 5vw, 38px);
+      line-height: 1.15;
+    }
+
+    .subtitle {
+      margin: 0 0 22px;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .panel {
+      display: grid;
+      gap: 18px;
+      padding: 18px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+
+    label,
+    .label {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    input[type="file"],
+    select {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 9px 10px;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .info {
+      display: grid;
+      gap: 5px;
+      padding: 12px 14px;
+      border-radius: 6px;
+      background: var(--surface-2);
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .info strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      min-height: 44px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 9px 14px;
+      background: var(--surface-2);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .btn.primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: var(--primary-text);
+    }
+
+    .btn:disabled {
+      cursor: not-allowed;
+      opacity: .5;
+    }
+
+    .message {
+      min-height: 22px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .message.error {
+      color: var(--danger);
+    }
+
+    .message.success {
+      color: var(--success);
+    }
+
+    .details {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    code {
+      padding: 1px 4px;
+      border-radius: 4px;
+      background: var(--surface-2);
+      color: var(--text);
+    }
+
+    @media (max-width: 520px) {
+      .app {
+        padding-inline: 10px;
+      }
+
+      .panel {
+        padding: 14px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <h1>排班 ICS 生成器</h1>
+    <p class="subtitle">导入 Excel，选择姓名，生成可导入苹果日历或 Google 日历的排班文件。</p>
+
+    <section class="panel">
+      <div class="field">
+        <label for="fileInput">1. 选择排班 Excel</label>
+        <input id="fileInput" type="file" accept=".xlsx,.xls,.xlsm">
+      </div>
+
+      <div class="field">
+        <label for="personSelect">2. 选择人员</label>
+        <select id="personSelect" disabled>
+          <option value="">请先选择 Excel 文件</option>
+        </select>
+      </div>
+
+      <div class="info" aria-live="polite">
+        <div>日期范围：<strong id="dateRange">--</strong></div>
+        <div>导出内容：<strong>只包含班次代码和工时，不包含姓名</strong></div>
+      </div>
+
+      <div class="actions">
+        <button class="btn primary" id="downloadBtn" type="button" disabled>生成并下载 ICS</button>
+      </div>
+
+      <p class="message" id="message" role="status"></p>
+      <p class="details">说明：第一个日期按打开网页当天的当前月份解释，后面每列自动顺延一天；休息日也会导出为日历事件。</p>
+    </section>
+  </main>
+
+  <script>
+    const els = {
+      fileInput: document.getElementById("fileInput"),
+      personSelect: document.getElementById("personSelect"),
+      dateRange: document.getElementById("dateRange"),
+      downloadBtn: document.getElementById("downloadBtn"),
+      message: document.getElementById("message")
+    };
+
+    let scheduleModel = null;
+
+    function setMessage(text, type = "") {
+      els.message.textContent = text;
+      els.message.className = `message ${type}`.trim();
+    }
+
+    function isDateObject(value) {
+      return value instanceof Date && !Number.isNaN(value.getTime());
+    }
+
+    function isDayNumber(value) {
+      const number = Number(value);
+      return Number.isInteger(number) && number >= 1 && number <= 31;
+    }
+
+    function parseDateText(value, year, month) {
+      const text = String(value).trim();
+      if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(text)) {
+        const parts = text.split(/[-/]/).map(Number);
+        return new Date(parts[0], parts[1] - 1, parts[2]);
+      }
+      if (/^\d{1,2}[-/]\d{1,2}$/.test(text)) {
+        const parts = text.split(/[-/]/).map(Number);
+        return new Date(year, parts[0] - 1, parts[1]);
+      }
+      if (isDayNumber(text)) return new Date(year, month, Number(text));
+      return null;
+    }
+
+    function parseHeaderDates(rows) {
+      const candidates = [];
+      const today = new Date();
+      const baseYear = today.getFullYear();
+      const baseMonth = today.getMonth();
+
+      for (let rowIndex = 0; rowIndex < Math.min(rows.length, 8); rowIndex += 1) {
+        const row = rows[rowIndex] || [];
+        const dateLikeColumns = [];
+        for (let columnIndex = 0; columnIndex < row.length; columnIndex += 1) {
+          const value = row[columnIndex];
+          if (isDateObject(value) || isDayNumber(value) || parseDateText(value, baseYear, baseMonth)) {
+            dateLikeColumns.push(columnIndex);
+          }
+        }
+        if (dateLikeColumns.length >= 7) candidates.push({ rowIndex, columns: dateLikeColumns });
+      }
+
+      if (!candidates.length) throw new Error("没有找到日期表头。");
+      const header = candidates.sort((a, b) => b.columns.length - a.columns.length)[0];
+      const firstRaw = rows[header.rowIndex][header.columns[0]];
+      let firstDay;
+      if (isDateObject(firstRaw)) {
+        firstDay = firstRaw.getDate();
+      } else if (isDayNumber(firstRaw)) {
+        firstDay = Number(firstRaw);
+      } else {
+        const parsedFirstDate = parseDateText(firstRaw, baseYear, baseMonth);
+        firstDay = parsedFirstDate ? parsedFirstDate.getDate() : null;
+      }
+
+      if (!firstDay) throw new Error("没有找到第一个日期。");
+      const firstDate = new Date(baseYear, baseMonth, firstDay);
+      const dateColumns = header.columns.map((columnIndex, index) => {
+        const date = new Date(firstDate);
+        date.setDate(firstDate.getDate() + index);
+        return { columnIndex, date };
+      });
+      return { headerRowIndex: header.rowIndex, dateColumns };
+    }
+
+    function findNameColumn(rows, headerRowIndex) {
+      for (let rowIndex = 0; rowIndex <= headerRowIndex; rowIndex += 1) {
+        const row = rows[rowIndex] || [];
+        for (let columnIndex = 0; columnIndex < row.length; columnIndex += 1) {
+          if (/姓名|名字/.test(String(row[columnIndex] || ""))) return columnIndex;
+        }
+      }
+      return 3;
+    }
+
+    function parseWorkbook(arrayBuffer) {
+      if (!window.XLSX) throw new Error("Excel 解析库没有加载成功，请联网后刷新页面。");
+      const workbook = XLSX.read(arrayBuffer, { type: "array", cellDates: true });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: "" });
+      const { headerRowIndex, dateColumns } = parseHeaderDates(rows);
+      const nameColumn = findNameColumn(rows, headerRowIndex);
+      const people = [];
+
+      for (let rowIndex = headerRowIndex + 1; rowIndex < rows.length; rowIndex += 1) {
+        const name = String((rows[rowIndex] || [])[nameColumn] || "").trim();
+        if (!name || people.some((person) => person.name === name)) continue;
+
+        const shifts = dateColumns.map(({ columnIndex, date }) => ({
+          date,
+          code: String((rows[rowIndex] || [])[columnIndex] ?? "").trim(),
+          hours: (rows[rowIndex + 1] || [])[columnIndex]
+        }));
+        if (shifts.some((shift) => shift.code)) people.push({ name, shifts });
+      }
+
+      if (!people.length) throw new Error("没有找到姓名和排班数据，请确认表格格式。");
+      return { people, dateColumns, nameColumn };
+    }
+
+    function formatDate(date) {
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    }
+
+    function formatDateShort(date) {
+      return `${date.getMonth() + 1}月${date.getDate()}日`;
+    }
+
+    function formatDateRange(dateColumns) {
+      return `${formatDateShort(dateColumns[0].date)} - ${formatDateShort(dateColumns[dateColumns.length - 1].date)}`;
+    }
+
+    function escapeIcs(value) {
+      return String(value)
+        .replace(/\\/g, "\\\\")
+        .replace(/;/g, "\\;")
+        .replace(/,/g, "\\,")
+        .replace(/\r?\n/g, "\\n");
+    }
+
+    function icsDate(date) {
+      return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
+    }
+
+    function foldIcsLine(line) {
+      const result = [];
+      let current = "";
+      let currentBytes = 0;
+      for (const character of line) {
+        const bytes = new TextEncoder().encode(character).length;
+        if (current && currentBytes + bytes > 74) {
+          result.push(current);
+          current = ` ${character}`;
+          currentBytes = 1 + bytes;
+        } else {
+          current += character;
+          currentBytes += bytes;
+        }
+      }
+      if (current) result.push(current);
+      return result;
+    }
+
+    function buildIcs(person) {
+      const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+      const lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Shift Calendar Exporter//CN",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "X-WR-CALNAME:排班日历",
+        "X-WR-TIMEZONE:Asia/Shanghai",
+        "X-PUBLISHED-TTL:PT1D",
+        "REFRESH-INTERVAL;VALUE=DURATION:P1D"
+      ];
+
+      person.shifts.forEach((shift, index) => {
+        if (!shift.code) return;
+        const nextDate = new Date(shift.date);
+        nextDate.setDate(nextDate.getDate() + 1);
+        const hours = Number(shift.hours);
+        const description = [
+          "来源：排班表",
+          Number.isFinite(hours) && hours > 0 ? `工时：${hours}小时` : ""
+        ].filter(Boolean).join("\\n");
+
+        lines.push(
+          "BEGIN:VEVENT",
+          `UID:shift-${icsDate(shift.date)}-${index}@calendar.local`,
+          `DTSTAMP:${stamp}`,
+          `DTSTART;VALUE=DATE:${icsDate(shift.date)}`,
+          `DTEND;VALUE=DATE:${icsDate(nextDate)}`,
+          `SUMMARY:${escapeIcs(shift.code)}`,
+          `DESCRIPTION:${escapeIcs(description)}`,
+          "TRANSP:TRANSPARENT",
+          "END:VEVENT"
+        );
+      });
+
+      lines.push("END:VCALENDAR");
+      return lines.flatMap(foldIcsLine).join("\r\n") + "\r\n";
+    }
+
+    function downloadText(filename, content) {
+      const blob = new Blob([content], { type: "text/calendar;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function populatePeople() {
+      els.personSelect.innerHTML = '<option value="">请选择姓名</option>';
+      scheduleModel.people.forEach((person, index) => {
+        const option = document.createElement("option");
+        option.value = String(index);
+        option.textContent = person.name;
+        els.personSelect.append(option);
+      });
+      els.personSelect.disabled = false;
+      els.downloadBtn.disabled = true;
+      els.dateRange.textContent = formatDateRange(scheduleModel.dateColumns);
+    }
+
+    els.fileInput.addEventListener("change", async () => {
+      const file = els.fileInput.files[0];
+      if (!file) return;
+      setMessage("正在读取 Excel...");
+      els.personSelect.disabled = true;
+      els.downloadBtn.disabled = true;
+
+      try {
+        scheduleModel = parseWorkbook(await file.arrayBuffer());
+        populatePeople();
+        setMessage(`已读取 ${scheduleModel.people.length} 个人员，请选择要导出的姓名。`, "success");
+      } catch (error) {
+        scheduleModel = null;
+        els.personSelect.innerHTML = '<option value="">读取失败</option>';
+        els.dateRange.textContent = "--";
+        setMessage(error.message || "读取失败，请检查文件。", "error");
+      }
+    });
+
+    els.personSelect.addEventListener("change", () => {
+      els.downloadBtn.disabled = !scheduleModel || els.personSelect.value === "";
+    });
+
+    els.downloadBtn.addEventListener("click", () => {
+      const person = scheduleModel.people[Number(els.personSelect.value)];
+      if (!person) return;
+      const first = person.shifts[0].date;
+      const last = person.shifts[person.shifts.length - 1].date;
+      const filename = `schedule-${formatDate(first)}-${formatDate(last)}.ics`;
+      downloadText(filename, buildIcs(person));
+      setMessage(`已生成 ${filename}，事件标题未包含姓名。`, "success");
+    });
+  </script>
+</body>
+</html>
