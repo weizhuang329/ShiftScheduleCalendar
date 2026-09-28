@@ -384,9 +384,9 @@
         nextDate.setDate(nextDate.getDate() + 1);
         const hours = Number(shift.hours);
         const description = [
-          "来源：排班表",
+          // "来源：排班表",
           Number.isFinite(hours) && hours > 0 ? `工时：${hours}小时` : ""
-        ].filter(Boolean).join("\\n");
+        ].filter(Boolean).join("\n");
 
         lines.push(
           "BEGIN:VEVENT",
