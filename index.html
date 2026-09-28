@@ -215,6 +215,7 @@
     };
 
     let scheduleModel = null;
+    const DEFAULT_PERSON_NAME = "张艳菊";
 
     function setMessage(text, type = "") {
       els.message.textContent = text;
@@ -416,14 +417,17 @@
 
     function populatePeople() {
       els.personSelect.innerHTML = '<option value="">请选择姓名</option>';
+      let defaultIndex = -1;
       scheduleModel.people.forEach((person, index) => {
         const option = document.createElement("option");
         option.value = String(index);
         option.textContent = person.name;
         els.personSelect.append(option);
+        if (person.name === DEFAULT_PERSON_NAME) defaultIndex = index;
       });
       els.personSelect.disabled = false;
-      els.downloadBtn.disabled = true;
+      els.personSelect.value = defaultIndex >= 0 ? String(defaultIndex) : "";
+      els.downloadBtn.disabled = defaultIndex < 0;
       els.dateRange.textContent = formatDateRange(scheduleModel.dateColumns);
     }
 
