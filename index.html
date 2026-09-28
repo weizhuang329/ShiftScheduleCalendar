@@ -197,7 +197,7 @@
       </div>
 
       <div class="actions">
-        <button class="btn primary" id="downloadBtn" type="button" disabled>生成并下载 ICS</button>
+        <button class="btn primary" id="downloadBtn" type="button" disabled>生成并保存 ICS</button>
       </div>
 
       <p class="message" id="message" role="status"></p>
@@ -405,14 +405,31 @@
       return lines.flatMap(foldIcsLine).join("\r\n") + "\r\n";
     }
 
-    function downloadText(filename, content) {
+    async function saveText(filename, content) {
       const blob = new Blob([content], { type: "text/calendar;charset=utf-8" });
+      if (window.showSaveFilePicker) {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [
+            {
+              description: "Calendar file",
+              accept: { "text/calendar": [".ics"] }
+            }
+          ]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return "saved";
+      }
+
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
       link.download = filename;
       link.click();
       URL.revokeObjectURL(url);
+      return "downloaded";
     }
 
     function populatePeople() {
@@ -454,14 +471,22 @@
       els.downloadBtn.disabled = !scheduleModel || els.personSelect.value === "";
     });
 
-    els.downloadBtn.addEventListener("click", () => {
+    els.downloadBtn.addEventListener("click", async () => {
       const person = scheduleModel.people[Number(els.personSelect.value)];
       if (!person) return;
-      const first = person.shifts[0].date;
-      const last = person.shifts[person.shifts.length - 1].date;
-      const filename = `schedule-${formatDate(first)}-${formatDate(last)}.ics`;
-      downloadText(filename, buildIcs(person));
-      setMessage(`已生成 ${filename}，事件标题未包含姓名。`, "success");
+      const filename = "schedule.ics";
+      els.downloadBtn.disabled = true;
+      try {
+        const result = await saveText(filename, buildIcs(person));
+        const action = result === "saved" ? "已保存" : "已下载";
+        setMessage(`${action} ${filename}，事件标题未包含姓名。`, "success");
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          setMessage(error.message || "保存失败，请重试。", "error");
+        }
+      } finally {
+        els.downloadBtn.disabled = !scheduleModel || els.personSelect.value === "";
+      }
     });
   </script>
 </body>
