@@ -1,0 +1,14 @@
+# Private local inputs and generated calendars
+input/
+dist/
+*.ics
+
+# Python local environment and cache
+.venv/
+__pycache__/
+*.py[cod]
+
+# Local editor/system files
+.env
+.DS_Store
+Thumbs.db
