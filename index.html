@@ -345,6 +345,17 @@
       return `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
     }
 
+    function getShiftTimeRange(code) {
+      const normalizedCode = String(code).toUpperCase();
+      if (normalizedCode.includes("E3")) {
+        return { start: "07:00", end: "19:00" };
+      }
+      if (normalizedCode.includes("I")) {
+        return { start: "11:00", end: "20:00" };
+      }
+      return null;
+    }
+
     function foldIcsLine(line) {
       const result = [];
       let current = "";
@@ -383,17 +394,23 @@
         const nextDate = new Date(shift.date);
         nextDate.setDate(nextDate.getDate() + 1);
         const hours = Number(shift.hours);
+        const timeRange = getShiftTimeRange(shift.code);
         const description = [
           // "来源：排班表",
-          Number.isFinite(hours) && hours > 0 ? `工时：${hours}小时` : ""
+          Number.isFinite(hours) && hours > 0 ? `工时：${hours}小时` : "",
+          timeRange ? `时间：${timeRange.start}-${timeRange.end}` : ""
         ].filter(Boolean).join("\n");
 
         lines.push(
           "BEGIN:VEVENT",
           `UID:shift-${icsDate(shift.date)}-${index}@calendar.local`,
           `DTSTAMP:${stamp}`,
-          `DTSTART;VALUE=DATE:${icsDate(shift.date)}`,
-          `DTEND;VALUE=DATE:${icsDate(nextDate)}`,
+          timeRange
+            ? `DTSTART;TZID=Asia/Shanghai:${icsDate(shift.date)}T${timeRange.start.replace(":", "")}00`
+            : `DTSTART;VALUE=DATE:${icsDate(shift.date)}`,
+          timeRange
+            ? `DTEND;TZID=Asia/Shanghai:${icsDate(shift.date)}T${timeRange.end.replace(":", "")}00`
+            : `DTEND;VALUE=DATE:${icsDate(nextDate)}`,
           `SUMMARY:${escapeIcs(shift.code)}`,
           `DESCRIPTION:${escapeIcs(description)}`,
           "TRANSP:TRANSPARENT",
